@@ -23,6 +23,7 @@ export interface Product {
   stock: number;
   seller: SellerInfo; // Use the defined Seller type for populated data
   // --- ADDED Image Fields ---
+  images?: { url: string; publicId?: string }[]; // Array of image objects
   imageUrl?: string;      // The public URL for displaying the image
   imagePublicId?: string; // Optional: The ID used by Cloudinary (needed for deletion)
   // --- End Added Image Fields ---

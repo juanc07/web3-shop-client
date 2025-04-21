@@ -1,6 +1,6 @@
 // src/pages/ProductPage.tsx
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom"; // Import useNavigate and Link
+import { useParams, useNavigate} from "react-router-dom"; // Import useNavigate and Link
 import axios, { isAxiosError } from "axios"; // Import isAxiosError
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Added Header/Title
 import { Button } from "@/components/ui/button";

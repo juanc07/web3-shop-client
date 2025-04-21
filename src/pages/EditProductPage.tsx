@@ -1,7 +1,7 @@
 // src/pages/EditProductPage.tsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import axios, { isAxiosError } from "axios";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate} from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -152,9 +152,7 @@ const EditProductPage = () => {
        setUpdateError(errMsg); toast.error(errMsg);
        setIsUpdating(false); setIsUploadingImage(false); return;
     }
-    // --- End Validation ---
-
-    let updateSuccess = false;
+    // --- End Validation ---    
     let imageUploadSuccess = !newImageFile; // Assume success if no new image
 
     try {
@@ -169,8 +167,7 @@ const EditProductPage = () => {
         await axios.put(`http://localhost:5000/api/products/${productId}`, productData, {
             headers: { Authorization: `Bearer ${token}` }
         });
-        console.log(`Product ${productId} text data updated successfully.`);
-        updateSuccess = true;
+        console.log(`Product ${productId} text data updated successfully.`);        
         setIsUpdating(false); // Text update finished
 
         // --- Step 2: Upload New Image (if provided) ---

@@ -24,9 +24,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { UploadCloud, X, Image as ImageIcon } from 'lucide-react'; // Added ImageIcon
 
-interface ApiErrorData {
+/*interface ApiErrorData {
   message?: string;
-}
+}*/
 
 interface ProductFormState {
   name: string;
