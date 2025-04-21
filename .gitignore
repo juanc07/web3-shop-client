@@ -57,3 +57,4 @@ config.json
 # Testing
 coverage/
 *.lcov
+.qodo
