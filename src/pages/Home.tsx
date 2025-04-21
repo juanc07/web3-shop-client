@@ -6,7 +6,9 @@ import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Product } from "../types";
+import { Product } from "../types"; // Ensure Product type includes imageUrl
+import { toast } from "sonner"; // Import toast for Add to Cart feedback
+import { Image as ImageIcon } from "lucide-react"; // Placeholder icon
 
 const Home = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -39,6 +41,28 @@ const Home = () => {
       });
   }, []);
 
+   // --- Handle Add to Cart ---
+   const handleAddToCart = (product: Product) => {
+      if (!product._id) {
+          console.error("Product ID missing, cannot add to cart", product);
+          toast.error("Cannot add item to cart (missing ID).");
+          return;
+      }
+      if (product.stock <= 0) {
+          toast.error("Sorry, this product is currently out of stock.");
+          return;
+      }
+      addToCart({
+          productId: product._id,
+          name: product.name,
+          price: product.price,
+          quantity: 1,
+          imageUrl: product.imageUrl // Pass image if available
+      });
+      toast.success(`${product.name} added to cart!`);
+  }
+
+
   return (
     <div className="w-full">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">
@@ -58,14 +82,8 @@ const Home = () => {
               Sign up or log in to buy products or start selling with secure crypto payments.
             </p>
             <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-              {/* Ensure only ONE child Link inside Button with asChild */}
-              <Button asChild size="lg">
-                <Link to="/login">Login</Link>
-              </Button>
-              {/* Ensure only ONE child Link inside Button with asChild */}
-              <Button variant="outline" asChild size="lg">
-                <Link to="/register">Register</Link>
-              </Button>
+              <Button asChild size="lg"><Link to="/login">Login</Link></Button>
+              <Button variant="outline" asChild size="lg"><Link to="/register">Register</Link></Button>
             </div>
           </CardContent>
         </Card>
@@ -79,54 +97,61 @@ const Home = () => {
       ) : products.length === 0 ? (
          <p className="text-center text-muted-foreground mt-8">No products available at the moment.</p>
       ) :(
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"> {/* Responsive columns & gap */}
           {products.map((product) => (
             <Card
               key={product._id}
-              className="bg-card-light dark:bg-card-dark shadow-lg hover:shadow-xl transition-shadow w-full overflow-hidden border border-border flex flex-col"
+              className="bg-card-light dark:bg-card-dark shadow-md hover:shadow-lg transition-shadow w-full overflow-hidden border border-border flex flex-col group" // Added group for hover effects
             >
-              <CardHeader className="pb-2">
-                 <CardTitle className="text-lg sm:text-xl font-semibold line-clamp-1" title={product.name}>
-                     {product.name}
+               {/* --- Image Section --- */}
+              <Link to={`/product/${product._id}`} className="block relative overflow-hidden aspect-square bg-muted"> {/* Aspect ratio for consistent size */}
+                 {product.imageUrl ? (
+                      <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          // Use width/height or fill based on next/image if using Next.js
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" // Zoom effect on hover
+                      />
+                  ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                          <ImageIcon className="w-1/3 h-1/3 opacity-50" /> {/* Placeholder */}
+                      </div>
+                  )}
+              </Link>
+              {/* --- End Image Section --- */}
+
+              {/* Card Content below image */}
+              <div className="p-4 flex flex-col flex-grow"> {/* Use padding instead of CardHeader/CardContent for flexibility */}
+                  <CardTitle className="text-base sm:text-lg font-semibold line-clamp-1 mb-1" title={product.name}> {/* Adjusted size */}
+                     <Link to={`/product/${product._id}`} className="hover:underline">{product.name}</Link>
                   </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 pb-4 flex-grow">
-                <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base mt-1 line-clamp-3">
-                  {product.description}
-                </p>
-                <p className="text-lg font-bold mt-2">${product.price?.toFixed(2)}</p>
-                {product.stock != null && (
-                   <p className={`text-xs sm:text-sm mt-1 ${product.stock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {product.stock > 0 ? `In Stock: ${product.stock}` : 'Out of Stock'}
-                   </p>
-                )}
-              </CardContent>
-              <CardFooter className="flex flex-col sm:flex-row justify-between gap-2 border-t border-border pt-4">
-                 {/* *** ENSURE THIS STRUCTURE IS EXACT *** */}
-                 <Button variant="outline" className="w-full sm:w-auto" asChild>
-                   <Link to={`/product/${product._id}`}>
-                     View Details {/* Text must be INSIDE the Link */}
-                   </Link>
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-2 line-clamp-2 flex-grow"> {/* Allow description to grow */}
+                     {product.description}
+                  </p>
+                  {/* Price and Stock */}
+                  <div className="flex justify-between items-center mt-2">
+                     <p className="text-lg font-bold">${product.price?.toFixed(2)}</p>
+                     {product.stock != null && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${product.stock > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
+                           {product.stock > 0 ? `Stock: ${product.stock}` : 'Out of Stock'}
+                        </span>
+                     )}
+                  </div>
+              </div>
+
+              {/* Footer with Actions */}
+              <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2 border-t border-border p-4"> {/* Consistent padding */}
+                 <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
+                   <Link to={`/product/${product._id}`}>View Details</Link>
                  </Button>
-                 {/* *** END CHECK *** */}
-                <Button
-                  className="w-full sm:w-auto"
-                  onClick={() => {
-                      if (product._id) {
-                          addToCart({
-                              productId: product._id,
-                              name: product.name,
-                              price: product.price,
-                              quantity: 1,
-                          });
-                      } else {
-                          console.error("Product ID missing, cannot add to cart", product);
-                      }
-                  }}
-                  disabled={product.stock <= 0}
-                >
-                  Add to Cart
-                </Button>
+                 <Button
+                   size="sm"
+                   className="w-full sm:w-auto"
+                   onClick={() => handleAddToCart(product)} // Use handler
+                   disabled={product.stock <= 0}
+                 >
+                   {product.stock > 0 ? "Add to Cart" : "Out of Stock"}
+                 </Button>
               </CardFooter>
             </Card>
           ))}
