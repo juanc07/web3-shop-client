@@ -6,6 +6,9 @@
 .env.production
 .env.*  # Ignores any file starting with .env.
 
+# Qodo AI tool directory
+.qodo/
+
 # Node.js
 node_modules/
 package-lock.json  # Optional, include if you use npm
