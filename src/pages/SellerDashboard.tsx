@@ -41,6 +41,8 @@ const SellerDashboard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = async () => {
@@ -105,7 +107,7 @@ const SellerDashboard = () => {
 
       setForm((prev) => ({ ...prev, images: [...prev.images, ...validFiles] }));
       const newPreviews = validFiles.map((file) => URL.createObjectURL(file));
-      setImagePreviews((prev) => [...prev, ...newPreviews]);
+      setImagePreviews((prev) => ([...prev, ...newPreviews]));
 
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -189,7 +191,7 @@ const SellerDashboard = () => {
         newProduct.images = imageRes.data.images;
       }
 
-      setProducts((prev) => [...prev, newProduct]);
+      setProducts((prev) => ([...prev, newProduct]));
       setForm({ name: "", description: "", price: "", solPrice: "", piPrice: "", stock: "", images: [] });
       setImagePreviews([]);
       toast.success("Product created successfully!");
@@ -204,23 +206,31 @@ const SellerDashboard = () => {
     }
   };
 
-  const handleDelete = async (productId: string) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) return;
+  const handleDelete = async () => {
+    if (!productToDelete) return;
 
     try {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("Authentication required");
-      await axios.delete(`http://localhost:5000/api/products/${productId}`, {
+      await axios.delete(`http://localhost:5000/api/products/${productToDelete.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setProducts((prev) => prev.filter((p) => p._id !== productId));
-      toast.success("Product deleted successfully!");
+      setProducts((prev) => prev.filter((p) => p._id !== productToDelete.id));
+      toast.success(`Product "${productToDelete.name}" deleted successfully!`);
     } catch (error) {
       console.error("Delete product error:", error);
       let message = "Failed to delete product.";
       if (axios.isAxiosError(error)) message = error.response?.data?.message || error.message;
       toast.error(message);
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setProductToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (productId: string, productName: string) => {
+    setProductToDelete({ id: productId, name: productName });
+    setIsDeleteDialogOpen(true);
   };
 
   if (!user || !user.roles.includes("seller")) {
@@ -427,9 +437,43 @@ const SellerDashboard = () => {
                     <Button asChild variant="outline">
                       <Link to={`/seller/edit-product/${product._id}`}>Edit</Link>
                     </Button>
-                    <Button variant="destructive" onClick={() => handleDelete(product._id)}>
+                    <Button
+                      variant="destructive"
+                      onClick={() => openDeleteDialog(product._id, product.name)}
+                    >
                       Delete
                     </Button>
+                    {isDeleteDialogOpen && (
+                      <div
+                        className="fixed inset-0 flex items-center justify-center z-50 px-4"
+                        style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
+                      >
+                        <div className="bg-white dark:bg-[#222128] p-6 rounded-lg shadow-lg border border-[#494848] w-full max-w-md opacity-100">
+                          <h3 className="text-xl font-bold mb-4">Are you absolutely sure?</h3>
+                          <p className="text-muted-foreground mb-6">
+                            This action cannot be undone. This will permanently delete the product "{productToDelete?.name}".
+                          </p>
+                          <div className="flex justify-end gap-4">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setIsDeleteDialogOpen(false);
+                                setProductToDelete(null);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={handleDelete}
+                            >
+                              Delete Product
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
