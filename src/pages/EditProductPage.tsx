@@ -17,6 +17,8 @@ interface EditProductFormState {
   name: string;
   description: string;
   price: string;
+  solPrice: string;
+  piPrice: string;
   stock: string;
 }
 
@@ -25,7 +27,14 @@ const EditProductPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [productDetails, setProductDetails] = useState<Product | null>(null);
-  const [editForm, setEditForm] = useState<EditProductFormState>({ name: "", description: "", price: "", stock: "" });
+  const [editForm, setEditForm] = useState<EditProductFormState>({
+    name: "",
+    description: "",
+    price: "",
+    solPrice: "",
+    piPrice: "",
+    stock: "",
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -76,6 +85,8 @@ const EditProductPage = () => {
           name: product.name,
           description: product.description,
           price: product.price.toString(),
+          solPrice: product.solPrice.toString(),
+          piPrice: product.piPrice.toString(),
           stock: product.stock.toString(),
         });
         console.log("Product details fetched:", product);
@@ -95,7 +106,7 @@ const EditProductPage = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length > 0) {
-      const maxSizeMB = 5;
+      const maxSizeMB = 25; // Match server's MAX_IMAGE_SIZE_MB
       const maxImages = 6;
       const currentImageCount = productDetails?.images?.length || 0;
 
@@ -189,9 +200,23 @@ const EditProductPage = () => {
     }
 
     const price = parseFloat(editForm.price);
+    const solPrice = parseFloat(editForm.solPrice);
+    const piPrice = parseFloat(editForm.piPrice);
     const stock = parseInt(editForm.stock, 10);
-    if (!editForm.name.trim() || !editForm.description.trim() || isNaN(price) || price <= 0 || isNaN(stock) || stock < 0 || !Number.isInteger(stock)) {
-      const errMsg = "Please fill all fields correctly (positive price, non-negative integer stock).";
+    if (
+      !editForm.name.trim() ||
+      !editForm.description.trim() ||
+      isNaN(price) ||
+      price <= 0 ||
+      isNaN(solPrice) ||
+      solPrice <= 0 ||
+      isNaN(piPrice) ||
+      piPrice <= 0 ||
+      isNaN(stock) ||
+      stock < 0 ||
+      !Number.isInteger(stock)
+    ) {
+      const errMsg = "Please fill all fields correctly (positive prices, non-negative integer stock).";
       setUpdateError(errMsg);
       toast.error(errMsg);
       setIsUpdating(false);
@@ -206,6 +231,8 @@ const EditProductPage = () => {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
         price: price,
+        solPrice: solPrice,
+        piPrice: piPrice,
         stock: stock,
       };
       console.log(`Updating product ${productId} with data:`, productData);
@@ -218,16 +245,16 @@ const EditProductPage = () => {
       if (newImageFiles.length > 0) {
         console.log(`Uploading ${newImageFiles.length} new images for product ${productId}`);
         const formData = new FormData();
-        newImageFiles.forEach((file) => formData.append("image", file)); // Changed to "image" for Multer
+        newImageFiles.forEach((file) => formData.append("images", file)); // Match server's field name
         const res = await axios.post(`http://localhost:5000/api/products/${productId}/images`, formData, {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+          headers: { Authorization: `Bearer ${token}` }, // Let Axios set Content-Type
         });
-        console.log(`New images for product ${productId} uploaded successfully.`);
+        console.log(`New images for product ${productId} uploaded successfully:`, res.data.images);
         imageUploadSuccess = true;
         setNewImageFiles([]);
         setNewImagePreviews([]);
         setProductDetails((prev) =>
-          prev ? { ...prev, images: [...(prev.images || []), ...res.data.image]} : null
+          prev ? { ...prev, images: [...(prev.images || []), ...res.data.images] } : null
         );
       }
 
@@ -250,7 +277,14 @@ const EditProductPage = () => {
   };
 
   if (isLoading) return <div className="w-full px-4 py-6 text-center">Loading product details...</div>;
-  if (fetchError) return <div className="w-full px-4 py-6 text-center"><Alert variant="destructive"><AlertDescription>{fetchError}</AlertDescription></Alert></div>;
+  if (fetchError)
+    return (
+      <div className="w-full px-4 py-6 text-center">
+        <Alert variant="destructive">
+          <AlertDescription>{fetchError}</AlertDescription>
+        </Alert>
+      </div>
+    );
   if (!productDetails) return <div className="w-full px-4 py-6 text-center">Product not found.</div>;
 
   const isProcessing = isUpdating || isUploadingImages || !!isDeletingImage;
@@ -269,7 +303,11 @@ const EditProductPage = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleUpdateSubmit} className="space-y-4">
-            {updateError && <Alert variant="destructive"><AlertDescription>{updateError}</AlertDescription></Alert>}
+            {updateError && (
+              <Alert variant="destructive">
+                <AlertDescription>{updateError}</AlertDescription>
+              </Alert>
+            )}
 
             <div className="space-y-2">
               <Label>Product Images (up to 6)</Label>
@@ -312,12 +350,12 @@ const EditProductPage = () => {
                     <div className="text-center p-2">
                       <UploadCloud className="h-8 w-8 mx-auto mb-2" />
                       <span>Click or drag files to upload</span>
-                      <p className="text-xs mt-1">(Max 5MB each, up to 6 images total)</p>
+                      <p className="text-xs mt-1">(Max 25MB each, up to 6 images total)</p>
                     </div>
                     <Input
                       ref={fileInputRef}
                       id="product-images-edit"
-                      name="image"
+                      name="images" // Match server's field name
                       type="file"
                       accept="image/*"
                       multiple
@@ -330,7 +368,11 @@ const EditProductPage = () => {
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                       {newImagePreviews.map((preview, index) => (
                         <div key={index} className="relative group">
-                          <img src={preview} alt={`New Preview ${index + 1}`} className="w-full h-24 object-contain rounded-md border" />
+                          <img
+                            src={preview}
+                            alt={`New Preview ${index + 1}`}
+                            className="w-full h-24 object-contain rounded-md border"
+                          />
                           <Button
                             type="button"
                             variant="destructive"
@@ -376,7 +418,7 @@ const EditProductPage = () => {
                 required
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="product-price">Price ($)</Label>
                 <Input
@@ -393,20 +435,50 @@ const EditProductPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="product-stock">Stock Quantity</Label>
+                <Label htmlFor="product-sol-price">Price (SOL)</Label>
                 <Input
-                  id="product-stock"
-                  name="stock"
+                  id="product-sol-price"
+                  name="solPrice"
                   type="number"
-                  placeholder="0"
-                  value={editForm.stock}
+                  placeholder="0.00"
+                  value={editForm.solPrice}
                   onChange={handleFormChange}
-                  min="0"
-                  step="1"
+                  min="0.01"
+                  step="0.01"
                   disabled={isProcessing}
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="product-pi-price">Price (Pi)</Label>
+                <Input
+                  id="product-pi-price"
+                  name="piPrice"
+                  type="number"
+                  placeholder="0.00"
+                  value={editForm.piPrice}
+                  onChange={handleFormChange}
+                  min="0.01"
+                  step="0.01"
+                  disabled={isProcessing}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product-stock">Stock Quantity</Label>
+              <Input
+                id="product-stock"
+                name="stock"
+                type="number"
+                placeholder="0"
+                value={editForm.stock}
+                onChange={handleFormChange}
+                min="0"
+                step="1"
+                disabled={isProcessing}
+                required
+              />
             </div>
             <Button type="submit" className="w-full sm:w-auto" disabled={isProcessing}>
               {isProcessing ? "Updating Product..." : "Update Product"}

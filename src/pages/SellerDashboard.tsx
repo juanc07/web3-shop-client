@@ -1,6 +1,6 @@
 // src/pages/SellerDashboard.tsx
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom"; // Added Link import
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,49 @@ interface ProductForm {
   name: string;
   description: string;
   price: string;
+  solPrice: string;
+  piPrice: string;
   stock: string;
 }
 
 const SellerDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation(); // To detect navigation changes
   const [products, setProducts] = useState<Product[]>([]);
-  const [form, setForm] = useState<ProductForm>({ name: "", description: "", price: "", stock: "" });
+  const [form, setForm] = useState<ProductForm>({
+    name: "",
+    description: "",
+    price: "",
+    solPrice: "",
+    piPrice: "",
+    stock: "",
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Authentication required");
+      const res = await axios.get("http://localhost:5000/api/products", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProducts(res.data.filter((p: Product) => p.seller._id === user!.id));
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      let message = "Failed to load products.";
+      if (axios.isAxiosError(error)) message = error.response?.data?.message || error.message;
+      setFetchError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user || !user.roles.includes("seller")) {
@@ -35,29 +66,8 @@ const SellerDashboard = () => {
       return;
     }
 
-    const fetchProducts = async () => {
-      setIsLoading(true);
-      setFetchError(null);
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error("Authentication required");
-        const res = await axios.get("http://localhost:5000/api/products", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setProducts(res.data.filter((p: Product) => p.seller._id === user.id));
-      } catch (error) {
-        console.error("Error fetching products:", error);
-        let message = "Failed to load products.";
-        if (axios.isAxiosError(error)) message = error.response?.data?.message || error.message;
-        setFetchError(message);
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchProducts();
-  }, [user, navigate]);
+  }, [user, navigate, location.pathname]); // Refetch on pathname change
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -70,9 +80,22 @@ const SellerDashboard = () => {
     setIsCreating(true);
 
     const price = parseFloat(form.price);
+    const solPrice = parseFloat(form.solPrice);
+    const piPrice = parseFloat(form.piPrice);
     const stock = parseInt(form.stock, 10);
-    if (!form.name.trim() || !form.description.trim() || isNaN(price) || price <= 0 || isNaN(stock) || stock < 0) {
-      setCreateError("Please fill all fields correctly (positive price, non-negative stock).");
+    if (
+      !form.name.trim() ||
+      !form.description.trim() ||
+      isNaN(price) ||
+      price <= 0 ||
+      isNaN(solPrice) ||
+      solPrice <= 0 ||
+      isNaN(piPrice) ||
+      piPrice <= 0 ||
+      isNaN(stock) ||
+      stock < 0
+    ) {
+      setCreateError("Please fill all fields correctly (positive prices, non-negative stock).");
       setIsCreating(false);
       return;
     }
@@ -86,12 +109,14 @@ const SellerDashboard = () => {
           name: form.name.trim(),
           description: form.description.trim(),
           price,
+          solPrice,
+          piPrice,
           stock,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setProducts((prev) => [...prev, res.data]);
-      setForm({ name: "", description: "", price: "", stock: "" });
+      setForm({ name: "", description: "", price: "", solPrice: "", piPrice: "", stock: "" });
       toast.success("Product created successfully!");
     } catch (error) {
       console.error("Create product error:", error);
@@ -101,6 +126,25 @@ const SellerDashboard = () => {
       toast.error(message);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleDelete = async (productId: string) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Authentication required");
+      await axios.delete(`http://localhost:5000/api/products/${productId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProducts((prev) => prev.filter((p) => p._id !== productId));
+      toast.success("Product deleted successfully!");
+    } catch (error) {
+      console.error("Delete product error:", error);
+      let message = "Failed to delete product.";
+      if (axios.isAxiosError(error)) message = error.response?.data?.message || error.message;
+      toast.error(message);
     }
   };
 
@@ -148,7 +192,7 @@ const SellerDashboard = () => {
                 required
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="price">Price ($)</Label>
                 <Input
@@ -165,20 +209,50 @@ const SellerDashboard = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="stock">Stock Quantity</Label>
+                <Label htmlFor="solPrice">Price (SOL)</Label>
                 <Input
-                  id="stock"
-                  name="stock"
+                  id="solPrice"
+                  name="solPrice"
                   type="number"
-                  placeholder="0"
-                  value={form.stock}
+                  placeholder="0.00"
+                  value={form.solPrice}
                   onChange={handleFormChange}
-                  min="0"
-                  step="1"
+                  min="0.01"
+                  step="0.01"
                   disabled={isCreating}
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="piPrice">Price (Pi)</Label>
+                <Input
+                  id="piPrice"
+                  name="piPrice"
+                  type="number"
+                  placeholder="0.00"
+                  value={form.piPrice}
+                  onChange={handleFormChange}
+                  min="0.01"
+                  step="0.01"
+                  disabled={isCreating}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stock">Stock Quantity</Label>
+              <Input
+                id="stock"
+                name="stock"
+                type="number"
+                placeholder="0"
+                value={form.stock}
+                onChange={handleFormChange}
+                min="0"
+                step="1"
+                disabled={isCreating}
+                required
+              />
             </div>
             <Button type="submit" className="w-full sm:w-auto" disabled={isCreating}>
               {isCreating ? "Creating Product..." : "Create Product"}
@@ -202,14 +276,40 @@ const SellerDashboard = () => {
           ) : (
             <ul className="space-y-4">
               {products.map((product) => (
-                <li key={product._id} className="flex justify-between items-center border-b pb-2">
-                  <div>
-                    <p className="font-semibold">{product.name}</p>
-                    <p className="text-sm text-muted-foreground">${product.price.toFixed(2)} | Stock: {product.stock}</p>
+                <li
+                  key={product._id}
+                  className="flex items-center border-b pb-2 space-x-4"
+                >
+                  <div className="flex-shrink-0">
+                    {product.images && product.images.length > 0 ? (
+                      <img
+                        src={product.images[0].url}
+                        alt={product.name}
+                        className="w-16 h-16 object-contain rounded-md border"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-xs text-center border">
+                        No image available
+                      </div>
+                    )}
                   </div>
-                  <Button asChild variant="outline">
-                    <Link to={`/seller/edit-product/${product._id}`}>Edit</Link>
-                  </Button>
+                  <div className="flex-grow">
+                    <p className="font-semibold">{product.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      ${product.price.toFixed(2)} | SOL {product.solPrice.toFixed(2)} | Pi {product.piPrice.toFixed(2)} | Stock: {product.stock}
+                    </p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button asChild variant="outline">
+                      <Link to={`/product/${product._id}`}>View</Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link to={`/seller/edit-product/${product._id}`}>Edit</Link>
+                    </Button>
+                    <Button variant="destructive" onClick={() => handleDelete(product._id)}>
+                      Delete
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>

@@ -1,6 +1,7 @@
 // src/pages/Home.tsx
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { Link } from "react-router-dom"; // Added Link import
 import { useCart } from "../context/CartContext";
 import { Product, CartItem } from "../types";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,14 @@ const Home = () => {
               </div>
               <p className="text-sm text-muted-foreground mb-2">{product.description}</p>
               <p className="text-lg font-bold mb-4">${product.price.toFixed(2)} USDC</p>
-              <Button onClick={() => handleAddToCart(product)}>Add to Cart</Button>
+              <div className="flex space-x-2">
+                <Button asChild variant="outline" className="flex-1">
+                  <Link to={`/product/${product._id}`}>View Details</Link>
+                </Button>
+                <Button onClick={() => handleAddToCart(product)} className="flex-1">
+                  Add to Cart
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}

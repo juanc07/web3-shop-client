@@ -2,9 +2,9 @@
 export interface CartItem {
   productId: string;
   name: string;
-  price: number;    // Price in USDC
+  price: number; // Price in USDC
   solPrice: number; // Price in SOL
-  piPrice: number;  // Price in Pi
+  piPrice: number; // Price in Pi
   quantity: number;
   imageUrl?: string;
 }
@@ -34,9 +34,9 @@ export interface Product {
   id?: string;
   name: string;
   description: string;
-  price: number;    // Price in USDC
+  price: number; // Price in USDC
   solPrice: number; // Price in SOL
-  piPrice: number;  // Price in Pi
+  piPrice: number; // Price in Pi
   stock: number;
   seller: SellerInfo;
   images?: { url: string; publicId: string }[];
@@ -56,8 +56,8 @@ export interface Order {
   user: User | null;
   products: OrderProductInfo[];
   total: number; // Total in USDC, SOL, or Pi, based on paymentMethod
-  status: "pending" | "completed" | "cancelled";
-  paymentMethod: "usdc" | "solana" | "pi" | "other";
+  status: "pending" | "completed" | "cancelled" | "failed";
+  paymentMethod: "usdc" | "solana" | "pi";
   paymentSignature?: string;
   createdAt?: string | Date;
   updatedAt?: string | Date;
