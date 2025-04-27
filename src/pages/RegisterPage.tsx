@@ -6,15 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import axios from "axios";
 
 const RegisterPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("buyer");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
@@ -25,13 +24,8 @@ const RegisterPage = () => {
     setError("");
     setIsLoading(true);
 
-    if (!email || !password || !name || !role) {
-      setError("All fields (Name, Email, Password, Role) are required");
-      setIsLoading(false);
-      return;
-    }
-    if (!["buyer", "seller"].includes(role)) {
-      setError("Invalid role selected. Please choose Buyer or Seller.");
+    if (!email || !password || !firstName || !lastName) {
+      setError("All fields (First Name, Last Name, Email, Password) are required");
       setIsLoading(false);
       return;
     }
@@ -42,7 +36,7 @@ const RegisterPage = () => {
     }
 
     try {
-      await register(email, password, name, role);
+      await register(email, password, firstName, lastName);
       navigate("/");
     } catch (err: unknown) {
       console.error("Register page error:", err);
@@ -72,17 +66,31 @@ const RegisterPage = () => {
               </Alert>
             )}
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="firstName">First Name</Label>
               <Input
-                id="name"
+                id="firstName"
                 type="text"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your first name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
                 className="text-sm sm:text-base"
                 disabled={isLoading}
                 required
-                autoComplete="name"
+                autoComplete="given-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
+                id="lastName"
+                type="text"
+                placeholder="Enter your last name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="text-sm sm:text-base"
+                disabled={isLoading}
+                required
+                autoComplete="family-name"
               />
             </div>
             <div className="space-y-2">
@@ -113,24 +121,12 @@ const RegisterPage = () => {
                 autoComplete="new-password"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Register As</Label>
-              <Select value={role} onValueChange={setRole} disabled={isLoading} required>
-                <SelectTrigger id="role" className="text-sm sm:text-base">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent className="bg-background text-foreground border border-border shadow-lg">
-                  <SelectItem value="buyer">Buyer</SelectItem>
-                  <SelectItem value="seller">Seller</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Registering..." : "Register"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Already have an account?{' '}
+            Already have an account?{" "}
             <Link to="/login" className="underline text-primary hover:text-primary/90">
               Login
             </Link>

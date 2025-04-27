@@ -188,7 +188,9 @@ const ProductPage = () => {
             >
               {product.stock > 0 ? `In Stock: ${product.stock} available` : "Out of Stock"}
             </p>
-            <p className="text-sm">Sold by: {product.seller.name}</p>
+            <p className="text-sm">
+              Sold by: {product.seller.username || product.seller.firstName || product.seller.lastName || "N/A"}
+            </p>
           </div>
 
           {product.stock > 0 && (

@@ -61,10 +61,12 @@ const EditProductPage = () => {
     setFetchError(null);
     console.log(`Fetching details for product ID: ${productId}`);
     axios
-      .get(`http://localhost:5000/api/products/${productId}`)
+      .get(`http://localhost:5000/api/products/${productId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       .then((res) => {
         const product: Product = res.data;
-        if (user.role !== "admin" && product.seller?._id !== user.id) {
+        if (!user.roles.includes("admin") && product.seller?._id !== user.id) {
           toast.error("You are not authorized to edit this product.");
           navigate("/seller/dashboard");
           return;
@@ -216,7 +218,7 @@ const EditProductPage = () => {
       if (newImageFiles.length > 0) {
         console.log(`Uploading ${newImageFiles.length} new images for product ${productId}`);
         const formData = new FormData();
-        newImageFiles.forEach((file) => formData.append("images", file));
+        newImageFiles.forEach((file) => formData.append("image", file)); // Changed to "image" for Multer
         const res = await axios.post(`http://localhost:5000/api/products/${productId}/images`, formData, {
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
         });
@@ -225,7 +227,7 @@ const EditProductPage = () => {
         setNewImageFiles([]);
         setNewImagePreviews([]);
         setProductDetails((prev) =>
-          prev ? { ...prev, images: [...(prev.images || []), ...res.data.images] } : null
+          prev ? { ...prev, images: [...(prev.images || []), ...res.data.image]} : null
         );
       }
 
@@ -315,7 +317,7 @@ const EditProductPage = () => {
                     <Input
                       ref={fileInputRef}
                       id="product-images-edit"
-                      name="images"
+                      name="image"
                       type="file"
                       accept="image/*"
                       multiple
