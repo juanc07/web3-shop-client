@@ -1,59 +1,53 @@
 // src/types/index.ts
-
 export interface User {
-  id: string; // Usually corresponds to _id from backend after login/profile fetch
+  id: string;
   email: string;
   name: string;
   role: "buyer" | "seller" | "admin";
 }
 
-// Define Seller type for clarity, matching populated structure or User subset
 export interface SellerInfo {
-  _id: string; // Keep _id for consistency with DB refs
+  _id: string;
   name: string;
-  // Add other relevant seller fields if needed, e.g., email
+  email?: string;
 }
 
 export interface Product {
-  _id: string; // Use _id as the primary identifier from MongoDB
-  id?: string; // Optional: sometimes included in API responses for convenience
+  _id: string;
+  id?: string; // Optional for backward compatibility
   name: string;
   description: string;
   price: number;
   stock: number;
-  seller: SellerInfo; // Use the defined Seller type for populated data
-  // --- ADDED Image Fields ---
-  images?: { url: string; publicId?: string }[]; // Array of image objects
-  imageUrl?: string;      // The public URL for displaying the image
-  imagePublicId?: string; // Optional: The ID used by Cloudinary (needed for deletion)
-  // --- End Added Image Fields ---
-  createdAt?: string | Date; // Optional: Timestamps might be ISO strings or Date objects
+  seller: SellerInfo;
+  images?: { url: string; publicId: string }[];
+  imageUrl?: string; // For legacy products
+  imagePublicId?: string | null; // For legacy products
+  createdAt?: string | Date;
   updatedAt?: string | Date;
 }
 
 export interface CartItem {
-  productId: string; // Should match Product._id
+  productId: string;
   name: string;
   price: number;
   quantity: number;
-  imageUrl?: string; // Optional: Add image URL to cart item for display
+  imageUrl?: string;
 }
 
-// Interface for the nested product structure within an Order
 export interface OrderProductInfo {
-   // Reference the main Product type, but maybe only specific fields are populated
-   product: Partial<Product> & { _id: string }; // Ensure _id is present, other fields might be partial
-   quantity: number;
+  product: Partial<Product> & { _id: string };
+  quantity: number;
 }
 
 export interface Order {
   _id: string;
-  user: User | null; // User who placed the order
-  products: OrderProductInfo[]; // Use the refined nested type
+  user: User | null;
+  products: OrderProductInfo[];
   total: number;
   status: "pending" | "completed" | "cancelled";
-  paymentMethod: "solana" | "pi" | "other"; // Assuming these are your payment methods
-  paymentSignature?: string; // Optional transaction signature
+  paymentMethod: "solana" | "pi" | "other";
+  paymentSignature?: string;
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }

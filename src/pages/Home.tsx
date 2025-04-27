@@ -1,160 +1,151 @@
 // src/pages/Home.tsx
 import { useEffect, useState } from "react";
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import { Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { useCart } from "../context/CartContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Product } from "../types"; // Ensure Product type includes imageUrl
-import { toast } from "sonner"; // Import toast for Add to Cart feedback
-import { Image as ImageIcon } from "lucide-react"; // Placeholder icon
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { Product } from "../types";
+import { Image as ImageIcon } from "lucide-react";
 
 const Home = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
-  const { addToCart } = useCart();
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-    axios
-      .get("http://localhost:5000/api/products")
-      .then((res) => {
-        if (Array.isArray(res.data)) {
-          setProducts(res.data);
-        } else {
-          console.error("API Error: Products response is not an array", res.data);
-          setError("Failed to load products: Invalid data format.");
-          setProducts([]);
-        }
-      })
-      .catch((err) => {
-        console.error("API Error fetching products:", err);
-        setError("Failed to load products. Please try again later.");
-        setProducts([]);
-      })
-      .finally(() => {
+    const fetchProducts = async () => {
+      setIsLoading(true);
+      setFetchError(null);
+      try {
+        const res = await axios.get("http://localhost:5000/api/products");
+        console.log("Home: Fetched products:", res.data);
+        setProducts(res.data);
+      } catch (err) {
+        console.error("Home: Error fetching products:", err);
+        let message = "Failed to load products.";
+        if (isAxiosError(err)) message = err.response?.data?.message || err.message || message;
+        setFetchError(message);
+        toast.error(message);
+      } finally {
         setIsLoading(false);
-      });
+      }
+    };
+
+    fetchProducts();
   }, []);
 
-   // --- Handle Add to Cart ---
-   const handleAddToCart = (product: Product) => {
-      if (!product._id) {
-          console.error("Product ID missing, cannot add to cart", product);
-          toast.error("Cannot add item to cart (missing ID).");
-          return;
-      }
-      if (product.stock <= 0) {
-          toast.error("Sorry, this product is currently out of stock.");
-          return;
-      }
-      addToCart({
-          productId: product._id,
-          name: product.name,
-          price: product.price,
-          quantity: 1,
-          imageUrl: product.imageUrl // Pass image if available
-      });
-      toast.success(`${product.name} added to cart!`);
-  }
+  const handleAddToCart = async (product: Product) => {
+    const token = localStorage.getItem("token");
+    console.log("Home: Token:", token ? "Present" : "Missing");
+    if (!token) {
+      toast.error("Please login to add items to your cart.");
+      return;
+    }
 
+    if (!product._id) {
+      toast.error("Invalid product ID.");
+      console.error(`Home: Invalid product ID for ${product.name}`);
+      return;
+    }
+
+    try {
+      console.log("Home: Sending cart request:", {
+        productId: product._id,
+        quantity: 1,
+      });
+      const response = await axios.post(
+        "http://localhost:5000/api/cart/add",
+        {
+          productId: product._id,
+          quantity: 1,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      console.log("Home: Cart response:", response.data);
+      toast.success(`${product.name} added to cart!`);
+    } catch (error) {
+      console.error("Home: Error adding to cart:", error);
+      let message = "Failed to add item to cart.";
+      if (isAxiosError(error)) {
+        message = error.response?.data?.message || error.message || message;
+        console.log("Home: Error response:", error.response?.data);
+      }
+      toast.error(message);
+    }
+  };
+
+  if (isLoading) return <div className="w-full px-4 py-6 text-center">Loading products...</div>;
+  if (fetchError) return <div className="w-full px-4 py-6 text-center"><Alert variant="destructive"><AlertDescription>{fetchError}</AlertDescription></Alert></div>;
 
   return (
-    <div className="w-full">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">
-        Welcome to Web3 Shop
-      </h1>
+    <div className="w-full px-4 py-6 space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-center">Welcome to Web3 Shop</h1>
 
-      {/* Call to Action Section */}
-      {!user && (
-        <Card className="bg-card-light dark:bg-card-dark shadow-lg w-full max-w-2xl mx-auto mb-8 border border-border">
-          <CardHeader>
-            <CardTitle className="text-lg sm:text-xl text-center">
-              Shop with Solana or Pi Network
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-center">
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Sign up or log in to buy products or start selling with secure crypto payments.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-              <Button asChild size="lg"><Link to="/login">Login</Link></Button>
-              <Button variant="outline" asChild size="lg"><Link to="/register">Register</Link></Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {products.length === 0 ? (
+        <p className="text-center text-muted-foreground">No products available.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => {
+            const imageSrc =
+              product.images && product.images.length > 0
+                ? product.images[0].url
+                : product.imageUrl || undefined;
 
-       {/* Product Grid Section */}
-      {isLoading ? (
-        <p className="text-center text-muted-foreground mt-8">Loading products...</p>
-      ) : error ? (
-         <p className="text-center text-destructive mt-8">{error}</p>
-      ) : products.length === 0 ? (
-         <p className="text-center text-muted-foreground mt-8">No products available at the moment.</p>
-      ) :(
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"> {/* Responsive columns & gap */}
-          {products.map((product) => (
-            <Card
-              key={product._id}
-              className="bg-card-light dark:bg-card-dark shadow-md hover:shadow-lg transition-shadow w-full overflow-hidden border border-border flex flex-col group" // Added group for hover effects
-            >
-               {/* --- Image Section --- */}
-              <Link to={`/product/${product._id}`} className="block relative overflow-hidden aspect-square bg-muted"> {/* Aspect ratio for consistent size */}
-                 {product.imageUrl ? (
+            return (
+              <Card key={product._id} className="bg-card-light dark:bg-card-dark shadow-lg border border-border">
+                <CardHeader>
+                  <CardTitle className="text-lg truncate">{product.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="w-full h-48 rounded-md bg-muted flex-shrink-0 overflow-hidden border">
+                    {imageSrc ? (
                       <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          // Use width/height or fill based on next/image if using Next.js
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" // Zoom effect on hover
+                        src={imageSrc}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        onError={() => console.error(`Home: Failed to load image for ${product.name}: ${imageSrc}`)}
                       />
-                  ) : (
+                    ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                          <ImageIcon className="w-1/3 h-1/3 opacity-50" /> {/* Placeholder */}
+                        <ImageIcon className="w-12 h-12" />
+                        <span className="ml-2">No image</span>
                       </div>
-                  )}
-              </Link>
-              {/* --- End Image Section --- */}
-
-              {/* Card Content below image */}
-              <div className="p-4 flex flex-col flex-grow"> {/* Use padding instead of CardHeader/CardContent for flexibility */}
-                  <CardTitle className="text-base sm:text-lg font-semibold line-clamp-1 mb-1" title={product.name}> {/* Adjusted size */}
-                     <Link to={`/product/${product._id}`} className="hover:underline">{product.name}</Link>
-                  </CardTitle>
-                  <p className="text-muted-foreground text-xs sm:text-sm mb-2 line-clamp-2 flex-grow"> {/* Allow description to grow */}
-                     {product.description}
-                  </p>
-                  {/* Price and Stock */}
-                  <div className="flex justify-between items-center mt-2">
-                     <p className="text-lg font-bold">${product.price?.toFixed(2)}</p>
-                     {product.stock != null && (
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${product.stock > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
-                           {product.stock > 0 ? `Stock: ${product.stock}` : 'Out of Stock'}
-                        </span>
-                     )}
+                    )}
                   </div>
-              </div>
-
-              {/* Footer with Actions */}
-              <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2 border-t border-border p-4"> {/* Consistent padding */}
-                 <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
-                   <Link to={`/product/${product._id}`}>View Details</Link>
-                 </Button>
-                 <Button
-                   size="sm"
-                   className="w-full sm:w-auto"
-                   onClick={() => handleAddToCart(product)} // Use handler
-                   disabled={product.stock <= 0}
-                 >
-                   {product.stock > 0 ? "Add to Cart" : "Out of Stock"}
-                 </Button>
-              </CardFooter>
-            </Card>
-          ))}
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
+                    <p className="text-lg font-semibold">${product.price.toFixed(2)}</p>
+                    <p
+                      className={`text-sm ${
+                        product.stock > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {product.stock > 0 ? `In Stock: ${product.stock}` : "Out of Stock"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" asChild disabled={!product._id}>
+                      <Link
+                        to={`/product/${product._id}`}
+                        onClick={() => console.log(`Home: Navigating to product: ${product._id}`)}
+                      >
+                        View Details
+                      </Link>
+                    </Button>
+                    {product.stock > 0 && (
+                      <Button onClick={() => handleAddToCart(product)} disabled={!product._id}>
+                        Add to Cart
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

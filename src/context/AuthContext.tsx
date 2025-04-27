@@ -19,11 +19,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const token = localStorage.getItem("token");
     if (token) {
       axios
-        .get("http://localhost:5000/api/users/profile", {
+        .get("http://localhost:5000/api/auth/profile", {
           headers: { Authorization: `Bearer ${token}` },
         })
         .then((res) => {
-          console.log("API /users/profile response:", res.data); // Debug
+          console.log("API /auth/profile response:", res.data);
           const profile = res.data;
           setUser({
             id: profile.id || profile._id,
@@ -33,16 +33,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           } as User);
         })
         .catch((err) => {
-          console.error("Profile fetch error:", err.response?.data); // Debug
+          console.error("Profile fetch error:", err.response?.data);
           localStorage.removeItem("token");
         });
     }
   }, []);
 
   const login = async (email: string, password: string) => {
-    const res = await axios.post("http://localhost:5000/api/users/login", { email, password });
+    const res = await axios.post("http://localhost:5000/api/auth/login", { email, password });
     localStorage.setItem("token", res.data.token);
-    console.log("Login user data:", res.data.user); // Debug
+    console.log("Login user data:", res.data.user);
     setUser({
       id: res.data.user.id || res.data.user._id,
       email: res.data.user.email,
@@ -52,14 +52,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const register = async (email: string, password: string, name: string, role: string) => {
-    const res = await axios.post("http://localhost:5000/api/users/register", {
+    const res = await axios.post("http://localhost:5000/api/auth/register", {
       email,
       password,
       name,
       role,
     });
     localStorage.setItem("token", res.data.token);
-    console.log("Register user data:", res.data.user); // Debug
+    console.log("Register user data:", res.data.user);
     setUser({
       id: res.data.user.id || res.data.user._id,
       email: res.data.user.email,
@@ -83,5 +83,5 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within an AuthProvider");
-  return context as AuthContextType; // Explicit cast
+  return context as AuthContextType;
 };

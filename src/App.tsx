@@ -13,7 +13,7 @@ import SellerDashboard from "./pages/SellerDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
-import EditProductPage from './pages/EditProductPage'; // *** 1. Import EditProductPage ***
+import EditProductPage from "./pages/EditProductPage"; // Import EditProductPage
 // import NotFoundPage from "./pages/NotFoundPage"; // Optional
 
 function App() {
@@ -27,7 +27,7 @@ function App() {
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/product/:id" element={<ProductPage />} />
+                <Route path="/product/:productId" element={<ProductPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
 
@@ -36,14 +36,14 @@ function App() {
                 <Route path="/seller/dashboard" element={<SellerDashboard />} />
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
-                {/* *** 2. Add the Route for Editing Products *** */}
+                {/* Route for Editing Products */}
                 <Route path="/seller/edit-product/:productId" element={<EditProductPage />} />
 
                 {/* Optional Catch-all Route */}
                 {/* <Route path="*" element={<NotFoundPage />} /> */}
               </Routes>
             </Layout>
-             {/* Navbar, Footer, Toaster are handled inside Layout */}
+            {/* Navbar, Footer, Toaster are handled inside Layout */}
           </BrowserRouter>
         </CartProvider>
       </AuthProvider>

@@ -1,161 +1,223 @@
 // src/pages/ProductPage.tsx
 import { useEffect, useState } from "react";
-import { useParams, useNavigate} from "react-router-dom"; // Import useNavigate and Link
-import axios, { isAxiosError } from "axios"; // Import isAxiosError
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Added Header/Title
+import axios, { isAxiosError } from "axios";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert"; // Import Alert
-import { Product } from "../types"; // Ensure Product type includes imageUrl
-import { useCart } from "../context/CartContext";
-import { toast } from "sonner"; // Import toast for notifications
-import { Image as ImageIcon } from "lucide-react"; // Placeholder icon
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { Product } from "../types";
+import { useAuth } from "../context/AuthContext";
+import { Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 
 const ProductPage = () => {
-  const { id } = useParams<{ id: string }>(); // Get product ID from URL params
-  const navigate = useNavigate(); // Hook for navigation
+  const { productId } = useParams<{ productId: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { addToCart } = useCart();
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState<number>(1);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0); // Carousel state
 
   useEffect(() => {
-    if (!id) {
-      setError("Product ID not found in URL.");
+    console.log("ProductPage: productId from useParams:", productId);
+    if (!productId) {
+      setFetchError("Product ID is missing.");
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    setError(null);
-    console.log(`Fetching product details for ID: ${id}`);
-
+    setFetchError(null);
+    console.log(`ProductPage: Fetching product details for ID: ${productId}`);
     axios
-      .get(`http://localhost:5000/api/products/${id}`)
+      .get(`http://localhost:5000/api/products/${productId}`)
       .then((res) => {
-        console.log("Product data received:", res.data);
-        // Add basic validation for the received data structure
-        if (res.data && typeof res.data === 'object' && res.data._id) {
-             setProduct(res.data as Product);
-        } else {
-            console.error("Invalid product data structure received:", res.data);
-            setError("Failed to load product details: Invalid data format.");
-            setProduct(null);
-        }
+        console.log("ProductPage: Product fetched:", res.data);
+        setProduct(res.data);
       })
       .catch((err) => {
-        console.error(`Error fetching product ${id}:`, err);
-        let message = "Failed to load product details.";
-         if (isAxiosError(err)) {
-             if(err.response?.status === 404){
-                 message = "Product not found.";
-             } else {
-                message = err.response?.data?.message || err.message || message;
-             }
-         }
-        setError(message);
-        setProduct(null);
+        console.error("ProductPage: Error fetching product:", err);
+        let message = "Failed to load product.";
+        if (isAxiosError(err)) message = err.response?.data?.message || err.message || message;
+        setFetchError(message);
+        toast.error(message);
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [id]); // Re-fetch if the ID changes
+  }, [productId]);
 
-  // --- Render States ---
-  if (isLoading) {
-    return <div className="w-full px-4 py-10 text-center text-muted-foreground">Loading Product...</div>;
-  }
+  const handleAddToCart = async () => {
+    if (!user) {
+      toast.error("Please login to add items to your cart.");
+      navigate("/login");
+      return;
+    }
+    if (!product || quantity < 1 || quantity > product.stock) {
+      const message = "Invalid quantity or product not available.";
+      setCartError(message);
+      toast.error(message);
+      return;
+    }
 
-  if (error) {
-    return (
-      <div className="w-full px-4 py-10 flex flex-col items-center">
-         <Alert variant="destructive" className="max-w-md">
-             <AlertDescription>{error}</AlertDescription>
-         </Alert>
-         <Button variant="outline" onClick={() => navigate(-1)} className="mt-4">
-             ← Go Back
-         </Button>
-      </div>
-    );
-  }
+    setIsAddingToCart(true);
+    setCartError(null);
+    const token = localStorage.getItem("token");
+    console.log("ProductPage: Token:", token ? "Present" : "Missing");
+    if (!token) {
+      toast.error("Authentication required.");
+      setIsAddingToCart(false);
+      navigate("/login");
+      return;
+    }
 
-  if (!product) {
-     // This case should ideally be covered by the error state after fetch fails
-    return <div className="w-full px-4 py-10 text-center">Product data unavailable.</div>;
-  }
-
-  // --- Handle Add to Cart ---
-  const handleAddToCart = () => {
-      if (product.stock <= 0) {
-          toast.error("Sorry, this product is currently out of stock.");
-          return;
-      }
-      addToCart({
-          productId: product._id, // Ensure _id is used
-          name: product.name,
-          price: product.price,
-          quantity: 1,
-          imageUrl: product.imageUrl // Pass image URL if available
+    try {
+      console.log("ProductPage: Sending cart request:", {
+        productId: product._id,
+        quantity,
       });
+      const response = await axios.post(
+        "http://localhost:5000/api/cart/add",
+        {
+          productId: product._id,
+          quantity,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      console.log("ProductPage: Cart response:", response.data);
       toast.success(`${product.name} added to cart!`);
-  }
+      setQuantity(1);
+    } catch (error) {
+      console.error("ProductPage: Error adding to cart:", error);
+      let message = "Failed to add item to cart.";
+      if (isAxiosError(error)) {
+        message = error.response?.data?.message || error.message || message;
+        console.log("ProductPage: Error response:", error.response?.data);
+      }
+      setCartError(message);
+      toast.error(message);
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  // Carousel navigation
+  const handlePrevImage = () => {
+    if (!product) return;
+    const images = product.images && product.images.length > 0 ? product.images : product.imageUrl ? [{ url: product.imageUrl, publicId: product.imagePublicId || "legacy" }] : [];
+    setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const handleNextImage = () => {
+    if (!product) return;
+    const images = product.images && product.images.length > 0 ? product.images : product.imageUrl ? [{ url: product.imageUrl, publicId: product.imagePublicId || "legacy" }] : [];
+    setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
+  if (isLoading) return <div className="w-full px-4 py-6 text-center">Loading product...</div>;
+  if (fetchError) return <div className="w-full px-4 py-6 text-center"><Alert variant="destructive"><AlertDescription>{fetchError}</AlertDescription></Alert></div>;
+  if (!product) return <div className="w-full px-4 py-6 text-center">Product not found.</div>;
+
+  const images = product.images && product.images.length > 0 ? product.images : product.imageUrl ? [{ url: product.imageUrl, publicId: product.imagePublicId || "legacy" }] : [];
+  const currentImage = images[currentImageIndex];
 
   return (
-    <div className="w-full px-4 py-6">
-      {/* Back Button */}
-      <Button variant="outline" onClick={() => navigate(-1)} className="mb-6">
-          ← Back
+    <div className="w-full px-4 py-6 space-y-6">
+      <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
+        ← Back
       </Button>
 
-      <Card className="bg-card-light dark:bg-card-dark shadow-lg w-full overflow-hidden border border-border">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-0"> {/* Changed gap to 0 */}
-           {/* Image Column */}
-           <div className="w-full aspect-square md:aspect-auto bg-muted flex items-center justify-center overflow-hidden"> {/* Maintain aspect ratio */}
-               {product.imageUrl ? (
-                  <img
-                     src={product.imageUrl}
-                     alt={product.name}
-                     className="w-full h-full object-cover transition-transform duration-300 hover:scale-105" // Added hover effect
-                     />
-               ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-4">
-                      <ImageIcon className="w-16 h-16 mb-2" />
-                      <span>No Image Available</span>
-                  </div>
-               )}
-            </div>
-
-           {/* Details Column */}
-           <div className="flex flex-col"> {/* Use flex column for footer positioning */}
-                <CardHeader>
-                    <CardTitle className="text-2xl lg:text-3xl font-bold">{product.name}</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 pb-4 flex-grow space-y-3"> {/* Allow content to grow */}
-                    <p className="text-gray-700 dark:text-gray-300 text-base">
-                        {product.description}
-                    </p>
-                    <p className="text-2xl font-bold mt-2">${product.price?.toFixed(2)}</p> {/* Formatted price */}
-                    {/* Stock Indicator */}
-                    <p className={`text-sm font-semibold ${product.stock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {product.stock > 0 ? `In Stock (${product.stock} available)` : 'Out of Stock'}
-                    </p>
-                    {/* Seller Info - Link to seller page? */}
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Sold by: <span className="font-medium">{product.seller?.name || 'Unknown Seller'}</span>
-                        {/* Example Link: <Link to={`/seller/${product.seller._id}`} className="text-primary hover:underline">{product.seller.name}</Link> */}
-                    </p>
-                </CardContent>
-                <CardFooter className="border-t border-border pt-4"> {/* Ensure footer is at bottom */}
+      <Card className="bg-card-light dark:bg-card-dark shadow-lg border border-border w-full max-w-4xl mx-auto">
+        <CardHeader>
+          <CardTitle className="text-lg sm:text-xl">{product.name}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            {images.length > 0 ? (
+              <div className="relative">
+                <img
+                  src={currentImage.url}
+                  alt={`${product.name} image ${currentImageIndex + 1}`}
+                  className="w-full h-[400px] object-contain rounded-md border"
+                  onError={() => console.error(`ProductPage: Failed to load image: ${currentImage.url}`)}
+                />
+                {images.length > 1 && (
+                  <>
                     <Button
-                        className="w-full sm:w-auto"
-                        onClick={handleAddToCart}
-                        disabled={product.stock <= 0} // Disable button if out of stock
-                        size="lg" // Make button larger
+                      variant="outline"
+                      size="icon"
+                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white dark:bg-gray-800"
+                      onClick={handlePrevImage}
                     >
-                        {product.stock > 0 ? "Add to Cart" : "Out of Stock"}
+                      <ChevronLeft className="h-6 w-6" />
                     </Button>
-                </CardFooter>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white dark:bg-gray-800"
+                      onClick={handleNextImage}
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="w-full h-[400px] bg-muted rounded-md flex items-center justify-center text-muted-foreground">
+                <ImageIcon className="w-12 h-12" />
+                <span className="ml-2">No images available</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-muted-foreground">{product.description}</p>
+            <p className="text-lg font-semibold">Price: ${product.price.toFixed(2)}</p>
+            <p
+              className={`text-sm ${
+                product.stock > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+              }`}
+            >
+              {product.stock > 0 ? `In Stock: ${product.stock} available` : "Out of Stock"}
+            </p>
+            <p className="text-sm">Sold by: {product.seller.name}</p>
+          </div>
+
+          {product.stock > 0 && (
+            <div className="space-y-4">
+              {cartError && <Alert variant="destructive"><AlertDescription>{cartError}</AlertDescription></Alert>}
+              <div className="flex items-center gap-4 max-w-xs">
+                <Label htmlFor="quantity" className="flex-shrink-0">
+                  Quantity:
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  max={product.stock}
+                  value={quantity}
+                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                  className="w-20"
+                  disabled={isAddingToCart}
+                />
+              </div>
+              <Button
+                onClick={handleAddToCart}
+                disabled={isAddingToCart || quantity < 1 || quantity > product.stock}
+              >
+                {isAddingToCart ? "Adding to Cart..." : "Add to Cart"}
+              </Button>
             </div>
-        </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );
