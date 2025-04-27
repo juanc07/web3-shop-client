@@ -1,5 +1,5 @@
 // src/pages/SellerDashboard.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Product } from "../types";
+import { Image as ImageIcon, UploadCloud, X } from "lucide-react";
 
 interface ProductForm {
   name: string;
@@ -18,12 +19,13 @@ interface ProductForm {
   solPrice: string;
   piPrice: string;
   stock: string;
+  images: File[];
 }
 
 const SellerDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation(); // To detect navigation changes
+  const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState<ProductForm>({
     name: "",
@@ -32,11 +34,14 @@ const SellerDashboard = () => {
     solPrice: "",
     piPrice: "",
     stock: "",
+    images: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -67,12 +72,59 @@ const SellerDashboard = () => {
     }
 
     fetchProducts();
-  }, [user, navigate, location.pathname]); // Refetch on pathname change
+  }, [user, navigate, location.pathname]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 0) {
+      const maxSizeMB = 25;
+      const maxImages = 6;
+      const currentImageCount = form.images.length;
+
+      const validFiles = files.filter((file) => {
+        if (file.size > maxSizeMB * 1024 * 1024) {
+          toast.error(`Image "${file.name}" is too large. Max ${maxSizeMB}MB.`);
+          return false;
+        }
+        if (!file.type.startsWith("image/")) {
+          toast.error(`File "${file.name}" is not an image.`);
+          return false;
+        }
+        return true;
+      });
+
+      if (currentImageCount + validFiles.length > maxImages) {
+        toast.error(`Cannot exceed ${maxImages} images total.`);
+        return;
+      }
+
+      setForm((prev) => ({ ...prev, images: [...prev.images, ...validFiles] }));
+      const newPreviews = validFiles.map((file) => URL.createObjectURL(file));
+      setImagePreviews((prev) => [...prev, ...newPreviews]);
+
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setForm((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+    setImagePreviews((prev) => {
+      const preview = prev[index];
+      URL.revokeObjectURL(preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    };
+  }, [imagePreviews]);
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,9 +152,17 @@ const SellerDashboard = () => {
       return;
     }
 
+    if (form.images.length === 0) {
+      setCreateError("At least one image is required.");
+      setIsCreating(false);
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("Authentication required");
+
+      // Create product
       const res = await axios.post(
         "http://localhost:5000/api/products",
         {
@@ -115,8 +175,23 @@ const SellerDashboard = () => {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setProducts((prev) => [...prev, res.data]);
-      setForm({ name: "", description: "", price: "", solPrice: "", piPrice: "", stock: "" });
+      const newProduct = res.data;
+
+      // Upload images
+      if (form.images.length > 0) {
+        const formData = new FormData();
+        form.images.forEach((file) => formData.append("images", file));
+        const imageRes = await axios.post(
+          `http://localhost:5000/api/products/${newProduct._id}/images`,
+          formData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        newProduct.images = imageRes.data.images;
+      }
+
+      setProducts((prev) => [...prev, newProduct]);
+      setForm({ name: "", description: "", price: "", solPrice: "", piPrice: "", stock: "", images: [] });
+      setImagePreviews([]);
       toast.success("Product created successfully!");
     } catch (error) {
       console.error("Create product error:", error);
@@ -166,6 +241,54 @@ const SellerDashboard = () => {
                 <AlertDescription>{createError}</AlertDescription>
               </Alert>
             )}
+            <div className="space-y-2">
+              <Label>Product Images (1–6 required)</Label>
+              <div
+                className="w-full h-32 bg-muted rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary transition-colors cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="text-center p-2">
+                  <UploadCloud className="h-8 w-8 mx-auto mb-2" />
+                  <span>Click or drag files to upload</span>
+                  <p className="text-xs mt-1">(Max 25MB each, 1–6 images)</p>
+                </div>
+                <Input
+                  ref={fileInputRef}
+                  id="product-images"
+                  name="images"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageChange}
+                  className="hidden"
+                  disabled={isCreating}
+                />
+              </div>
+              {imagePreviews.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                  {imagePreviews.map((preview, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-24 object-contain rounded-md border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-full h-6 w-6"
+                        onClick={() => removeImage(index)}
+                        disabled={isCreating}
+                      >
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Remove image</span>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="name">Product Name</Label>
               <Input
@@ -276,27 +399,25 @@ const SellerDashboard = () => {
           ) : (
             <ul className="space-y-4">
               {products.map((product) => (
-                <li
-                  key={product._id}
-                  className="flex items-center border-b pb-2 space-x-4"
-                >
-                  <div className="flex-shrink-0">
+                <li key={product._id} className="flex items-center border-b pb-2 space-x-4">
+                  <div className="flex-shrink-0 w-16 h-16">
                     {product.images && product.images.length > 0 ? (
                       <img
                         src={product.images[0].url}
                         alt={product.name}
-                        className="w-16 h-16 object-contain rounded-md border"
+                        className="w-full h-full object-contain rounded-md border"
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-xs text-center border">
-                        No image available
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-muted rounded-md border">
+                        <ImageIcon className="w-8 h-8" />
                       </div>
                     )}
                   </div>
                   <div className="flex-grow">
                     <p className="font-semibold">{product.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      ${product.price.toFixed(2)} | SOL {product.solPrice.toFixed(2)} | Pi {product.piPrice.toFixed(2)} | Stock: {product.stock}
+                      ${product.price.toFixed(2)} | SOL {product.solPrice.toFixed(2)} | Pi{" "}
+                      {product.piPrice.toFixed(2)} | Stock: {product.stock}
                     </p>
                   </div>
                   <div className="flex space-x-2">
