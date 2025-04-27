@@ -1,4 +1,3 @@
-// src/pages/Cart.tsx
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useCart } from "../context/CartContext";
@@ -18,7 +17,7 @@ import { usePiNetwork } from "../hooks/usePiNetwork";
 
 const RECEIVER_PUBLIC_KEY = import.meta.env.VITE_WEBSITE_WALLET;
 const SOLANA_ENDPOINT = import.meta.env.VITE_SOLANA_ENDPOINT || "https://api.devnet.solana.com";
-const USDC_MINT_ADDRESS = "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSdzGABd Bissett"; // Devnet USDC
+const USDC_MINT_ADDRESS = import.meta.env.VITE_USDC_MINT_ADDRESS || "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // Devnet USDC
 
 const Cart = () => {
   const { user } = useAuth();
@@ -157,17 +156,29 @@ const Cart = () => {
 
         if (paymentMethod === "usdc") {
           console.log("Checkout: Preparing USDC transaction", { total });
-          const usdcMint = new PublicKey(USDC_MINT_ADDRESS);
+          let usdcMint: PublicKey;
+          try {
+            usdcMint = new PublicKey(USDC_MINT_ADDRESS); // Validate USDC mint address
+          } catch (error) {
+            console.error("Invalid USDC_MINT_ADDRESS:", error);
+            throw new Error("Invalid USDC mint address. Check your .env file.");
+          }
           const usdcAmount = Math.round(total * 1_000_000); // USDC has 6 decimals
 
           const senderATA = await getAssociatedTokenAddress(usdcMint, publicKey);
           const receiverATA = await getAssociatedTokenAddress(usdcMint, receiverPublicKey);
 
-          // Check if receiver ATA exists (optional, assume merchant has it)
+          // Check if receiver ATA exists
           try {
             await getAccount(connection, receiverATA);
-          } catch (error) {
-            throw new Error("Receiver USDC account does not exist. Contact support.");
+          } catch (error:unknown) {
+            throw new Error("Receiver USDC account does not exist. Contact support error: " + error);
+          }
+
+          // Check if sender has sufficient balance (optional)
+          const senderAccount = await getAccount(connection, senderATA);
+          if (senderAccount.amount < BigInt(usdcAmount)) {
+            throw new Error("Insufficient USDC balance.");
           }
 
           const transferTx = new Transaction().add(
